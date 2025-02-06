@@ -1,41 +1,35 @@
-import cv2
-from skimage.metrics import structural_similarity as ssim
-import os
 import pyscreenshot as ImageGrab
 import time
 import pyautogui
 import numpy as np
 import random
 import sys
-from matplotlib import pyplot as plt
-from PIL import Image
-import pytesseract
-import easyocr
 import datetime
 import yagmail
-import requests
-from bs4 import BeautifulSoup
 from ultralytics import YOLO
 import yaml
 
-model = YOLO("yolov8s_playing_cards.pt")
+model = YOLO("PlayingCards.v4-yolov8n.yolov11")
 
-playerPos = ()
-playerPosR = ()
-playerPosRR = ()
-playerPosRL = ()
-playerPosL = ()
-playerPosLR = ()
-playerPosLL = ()
-dealerPos = ()
-hitPos = ()
-standPos = ()
-splitPos = ()
-doublePos = ()
-handWidth = 100
-handHeight = 100
-hitCol = ()
-insuranceCol = ()
+playerPos = (876, 616)
+playerPosR = tuple(np.subtract(playerPos, (181, 6)))
+playerPosL = tuple(np.subtract(playerPos, (-150, 6)))
+dealerPos = (874, 238)
+hitPos = (649, 993)
+standPos = (383, 991)
+splitPos = (580, 870)
+doublePos = (329, 866)
+replayPos = standPos
+insurancePos = (1052, 645)
+handWidth = 250
+handHeight = 214
+
+redCol = (236, 33, 43)
+redCol2 = (164, 30, 35)
+redCol3 = (210, 138, 142)
+grayCol = (157, 157, 157)
+grayCol2 = (118, 118, 118)
+grayCol3 = (39, 39, 39)
 
 splitStatus = ['none']
 
@@ -45,6 +39,8 @@ target_cycle = notify_cycle
 
 yaml_data = {}
 
+debug = True
+
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
 hardStrat = [
     [0,0,0,0,0,0,0,0,0,0], # 5
@@ -53,7 +49,7 @@ hardStrat = [
     [0,0,0,0,0,0,0,0,0,0], # 8
     [0,3,3,3,3,0,0,0,0,0], # 9
     [3,3,3,3,3,3,3,3,0,0], # 10
-    [3,3,3,3,3,3,3,3,3,3], # 11
+    [3,3,3,3,3,3,3,3,0,0], # 11
     [0,0,1,1,1,0,0,0,0,0], # 12
     [1,1,1,1,1,0,0,0,0,0], # 13
     [1,1,1,1,1,0,0,0,0,0], # 14
@@ -83,11 +79,18 @@ pairStrat = [
     [3,3,3,3,3,3,3,3,0,0], # 5,5
     [2,2,2,2,2,0,0,0,0,0], # 6,6
     [2,2,2,2,2,2,0,0,0,0], # 7,7
-    [2,2,2,2,2,2,2,2,2,2], # 8,8
+    [2,2,2,2,2,2,2,2,0,0], # 8,8
     [2,2,2,2,2,1,2,2,1,1], # 9,9
     [1,1,1,1,1,1,1,1,1,1], # 10,10
-    [2,2,2,2,2,2,2,2,2,2]  # A,A
+    [2,2,2,2,2,2,2,2,2,0]  # A,A
 ]
+
+def redReady(pos):
+    return pyautogui.pixelMatchesColor(pos[0], pos[1], redCol, tolerance=5) or pyautogui.pixelMatchesColor(pos[0], pos[1], redCol2, tolerance=5) or pyautogui.pixelMatchesColor(pos[0], pos[1], redCol3, tolerance=5)
+
+def grayReady(pos):
+    return pyautogui.pixelMatchesColor(pos[0], pos[1], grayCol, tolerance=5) or pyautogui.pixelMatchesColor(pos[0], pos[1], grayCol2, tolerance=5) or pyautogui.pixelMatchesColor(pos[0], pos[1], grayCol3, tolerance=5)
+    
 
 def getValue(str):
     if str == 'A':
@@ -99,8 +102,10 @@ def getValue(str):
 
 def getHandInArea(x, y):
     im = ImageGrab.grab(bbox=(x,y,x+handWidth,y+handHeight))
-    im.save(".tmpBJcapture.png")
-    results = model(".tmpBJcapture.png")  # predict on an image
+    im.save("tmp/.tmpBJcapture.png")
+    results = model("tmp/.tmpBJcapture.png")  # predict on an image
+    if debug:
+        print([x for x in results])
     hand = []
     for card in results[0]:
         hand.append(getValue(yaml_data.get(int(card[5]))[:-1]))
@@ -125,7 +130,7 @@ def handTotalHigh(hand):
     return total
 
 def getStrat(hand, dealer):
-    if len(hand) == 2 and hand[0] == hand[1] and (splitStatus[0] == 'none' or splitStatus[0] == 'R' or splitStatus[0] == 'L'):
+    if len(hand) == 2 and hand[0] == hand[1] and (splitStatus[0] == 'none'):
         return pairStrat[hand[0]-2][dealer-2]
     elif 11 in hand and handTotalHigh(hand) < 21:
         return softStrat[handTotal(hand)-13][dealer-2]
@@ -148,11 +153,13 @@ def playHand(playerHand, dealerHand):
 def waitForReady():
     print("waiting for go")
     time.sleep(0.2)
-    while(not pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=5)):
+    while(redReady(hitPos)):
         time.sleep(0.2)
         pyautogui.click()
     print("waiting for ready")
-    while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=5)):
+    while(not redReady(hitPos)):
+        if debug:
+            print(pyautogui.pixel(hitPos[0], hitPos[1]))
         time.sleep(0.2)
 
 def clickMouse(x, y):
@@ -169,6 +176,8 @@ def doAction(action):
         clickMouse(splitPos[0], splitPos[1])
     elif action == "double":
         clickMouse(doublePos[0], doublePos[1])
+    elif action == "insurance":
+        clickMouse(insurancePos[0], insurancePos[1])
     waitForReady()
 
 def playGame(playerHand, dealerHand):
@@ -192,25 +201,13 @@ def playGame(playerHand, dealerHand):
     if playerAction == "hit":
         doAction("hit")
         if splitStatus[0] == 'none':
-            playerHand = getHandInArea(playerPos[0], playerPos[1], playerHand)
+            playerHand = getHandInArea(playerPos[0], playerPos[1])
             playGame(playerHand, dealerHand)
         elif splitStatus[0] == 'R':
-            playerHand = getHandInArea(playerPosR[0], playerPosR[1], playerHand)
-            playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'RR':
-            playerHand = getHandInArea(playerPosRR[0], playerPosRR[1], playerHand)
-            playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'RL':
-            playerHand = getHandInArea(playerPosRL[0], playerPosRL[1], playerHand)
+            playerHand = getHandInArea(playerPosR[0], playerPosR[1])
             playGame(playerHand, dealerHand)
         elif splitStatus[0] == 'L':
-            playerHand = getHandInArea(playerPosL[0], playerPosL[1], playerHand)
-            playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'LR':
-            playerHand = getHandInArea(playerPosLR[0], playerPosLR[1], playerHand)
-            playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'LL':
-            playerHand = getHandInArea(playerPosLL[0], playerPosLL[1], playerHand)
+            playerHand = getHandInArea(playerPosL[0], playerPosL[1])
             playGame(playerHand, dealerHand)
     elif playerAction == "stand":
         doAction("stand")
@@ -222,24 +219,10 @@ def playGame(playerHand, dealerHand):
             return "end"
         if splitStatus[0] == 'none':
             splitStatus[0] = 'R'
-            playerHandR = getHandInArea(playerPosR[0], playerPosR[1], [playerHand[1]])
+            playerHandR = getHandInArea(playerPosR[0], playerPosR[1])
             playGame(playerHandR, dealerHand)
             splitStatus[0] = 'L'
-            playerHandL = getHandInArea(playerPosL[0], playerPosL[1], [playerHand[0]])
-            playGame(playerHandL, dealerHand)
-        elif splitStatus[0] == 'R':
-            splitStatus[0] = 'RR'
-            playerHandR = getHandInArea(playerPosRR[0], playerPosRR[1], [playerHand[1]])
-            playGame(playerHandR, dealerHand)
-            splitStatus[0] = 'RL'
-            playerHandL = getHandInArea(playerPosRL[0], playerPosRL[1], [playerHand[0]])
-            playGame(playerHandL, dealerHand)
-        elif splitStatus[0] == 'L':
-            splitStatus[0] = 'LR'
-            playerHandR = getHandInArea(playerPosLR[0], playerPosLR[1], [playerHand[1]])
-            playGame(playerHandR, dealerHand)
-            splitStatus[0] = 'LL'
-            playerHandL = getHandInArea(playerPosLL[0], playerPosLL[1], [playerHand[0]])
+            playerHandL = getHandInArea(playerPosL[0], playerPosL[1])
             playGame(playerHandL, dealerHand)
     elif playerAction == "double":
         doAction("double")
@@ -262,21 +245,24 @@ if __name__ == "__main__":
     while loop < int(sys.argv[1]):
         loop += 1
         print("checking for ready")
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], hitCol, tolerance=5)):
-            print("ready")
-            doAction("hit")
+        while not redReady(hitPos):
+            print(pyautogui.pixel(hitPos[0], hitPos[1]))
+            time.sleep(0.2)
+
+        print("ready")
+        doAction("stand")
 
         now = datetime.datetime.now()
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
         print(f"Starting hand {loop}/{sys.argv[1]} [{timestamp}]")
 
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], hitCol, tolerance=5)):
+        if(pyautogui.pixelMatchesColor(doublePos[0], doublePos[1], grayCol3, tolerance=5)):
             continue # player/dealer blackjack
         splitStatus[0] = 'none'
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], insuranceCol, tolerance=5)):
-            doAction("hit") # insurance
-        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], hitCol, tolerance=5):
-            continue # game over
+        if(grayReady(insurancePos)):
+            doAction("insurance") # insurance
+        if(pyautogui.pixelMatchesColor(doublePos[0], doublePos[1], grayCol3, tolerance=5)):
+            continue # game over after insurance
         playerHand = getHandInArea(playerPos[0], playerPos[1])
         dealerHand = getHandInArea(dealerPos[0], dealerPos[1])
         playGame(playerHand, dealerHand)

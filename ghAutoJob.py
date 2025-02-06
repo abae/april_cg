@@ -6,7 +6,7 @@ import random
 
 # Load a model
 # model = YOLO("yolov8n.yaml")  # build a new model from scratch
-model = YOLO("yolov8s_playing_cards.pt")  # load a pretrained model (recommended for training)
+model = YOLO("yolo11n.pt")  # load a pretrained model (recommended for training)
 
 # Use the model
 # results = model.train(data="coco128.yaml", epochs=3)  # train the model
@@ -22,7 +22,7 @@ def clickMouse(x, y):
 def read_cards_on_screen():
     # Load a model
     # model = YOLO("yolov8n.yaml")  # build a new model from scratch
-    model = YOLO("yolov8s_playing_cards.pt")  # load a pretrained model (recommended for training)
+    model = YOLO("PlayingCards.v4-yolov8n.yolov11")  # load a pretrained model (recommended for training)
 
     # Use the model
     # results = model.train(data="coco128.yaml", epochs=3)  # train the model
