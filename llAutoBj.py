@@ -43,6 +43,8 @@ standPos = (1692-1400, 1535-529)
 splitPos = (1920-1400, 1535-529)
 doublePos = (2854-1400, 1535-529)
 
+repeatCol = (50, 0, 110)
+
 letterDim = (21, 29) #tried 26,24
 symDim = (21, 26)
 cardGap = 28
@@ -357,6 +359,9 @@ def playGame(playerHand, dealerHand):
             playerAction = "stand"
     if playerAction == "hit":
         doAction("hit")
+        print(f"seeing {pyautogui.pixel(hitPos[0], hitPos[1])}")
+        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5):
+            return "end" # player bust
         if splitStatus[0] == 'none':
             if(isPartnerReady(playerPos[0] + (cardGap*len(playerHand)), playerPos[1])):
                 playerHand = appendHand(playerPos[0], playerPos[1], playerHand)
@@ -437,20 +442,20 @@ if __name__ == "__main__":
     while loop < int(sys.argv[1]):
         loop += 1
         print("checking for ready")
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (42, 4, 111), tolerance=5)):
-            print("ready")
-            doAction("hit")
+        while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=5)):
+            time.sleep(0.2)
+        doAction("hit")
 
         now = datetime.datetime.now()
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
         print(f"Starting hand {loop}/{sys.argv[1]} [{timestamp}]")
 
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (42, 4, 111), tolerance=5)):
+        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5)):
             continue # player/dealer blackjack
         splitStatus[0] = 'none'
         if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (116, 22, 98), tolerance=5)):
             doAction("hit") # insurance
-        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (42, 4, 111), tolerance=5):
+        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5):
             continue # game over
         playerHand = getHand(playerPos[0], playerPos[1], 2)
         dealerHand = getHand(dealerPos[0], dealerPos[1], 1)
