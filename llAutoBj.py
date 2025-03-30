@@ -301,11 +301,11 @@ def waitForReady():
     global max_wait_count
     print("waiting for go")
     time.sleep(0.2)
-    while(not pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=5)):
+    while(not pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=25)):
         time.sleep(0.2)
         pyautogui.click()
     print("waiting for ready")
-    while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=5)):
+    while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=25)):
         time.sleep(0.2)
         wait_count += 1
         if wait_count > max_wait_count:
@@ -360,7 +360,7 @@ def playGame(playerHand, dealerHand):
     if playerAction == "hit":
         doAction("hit")
         print(f"seeing {pyautogui.pixel(hitPos[0], hitPos[1])}")
-        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5):
+        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=25):
             return "end" # player bust
         if splitStatus[0] == 'none':
             if(isPartnerReady(playerPos[0] + (cardGap*len(playerHand)), playerPos[1])):
@@ -442,7 +442,7 @@ if __name__ == "__main__":
     while loop < int(sys.argv[1]):
         loop += 1
         print("checking for ready")
-        while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=5)):
+        while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=25)):
             time.sleep(0.2)
         doAction("hit")
 
@@ -450,12 +450,12 @@ if __name__ == "__main__":
         timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
         print(f"Starting hand {loop}/{sys.argv[1]} [{timestamp}]")
 
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5)):
+        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=25)):
             continue # player/dealer blackjack
         splitStatus[0] = 'none'
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (116, 22, 98), tolerance=20)):
+        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (116, 22, 98), tolerance=25)):
             doAction("hit") # insurance
-        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5):
+        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=25):
             continue # game over
         playerHand = getHand(playerPos[0], playerPos[1], 2)
         dealerHand = getHand(dealerPos[0], dealerPos[1], 1)
