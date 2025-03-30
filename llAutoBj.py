@@ -453,7 +453,7 @@ if __name__ == "__main__":
         if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5)):
             continue # player/dealer blackjack
         splitStatus[0] = 'none'
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (116, 22, 98), tolerance=5)):
+        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (116, 22, 98), tolerance=20)):
             doAction("hit") # insurance
         if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=5):
             continue # game over
