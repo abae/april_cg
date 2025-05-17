@@ -1,20 +1,19 @@
 import cv2
-from skimage.metrics import structural_similarity as ssim
 import os
 import pyscreenshot as ImageGrab
 import time
 import pyautogui
+from pyautogui import ImageNotFoundException
 import numpy as np
 import random
 import sys
 from matplotlib import pyplot as plt
-from PIL import Image
+from PIL import Image, ImageGrab
+import imagehash
 import pytesseract
-import easyocr
 import shutil
 import uuid
 import datetime
-import yagmail
 
 
 # playerPos = (2286, 1241)
@@ -105,91 +104,15 @@ pairStrat = [
     [2,2,2,2,2,2,2,2,2,2]  # A,A
 ]
 
-def rgb2gray(rgb):
-    return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
-
-def captureGrayImage(x,y,width,type):
-    array_alpha = np.array([image_contrast_alpha])
-    array_beta = np.array([image_contrast_beta])
-
-    if type == 'num':
-        im=ImageGrab.grab(bbox=(x,y,x+width,y+letterDim[1]))
-    elif type == 'sym':
-        im=ImageGrab.grab(bbox=(x,y+symDim[1]-1,x+symDim[0],y+letterDim[1]+symDim[1]))
-    else:
-        print("Invalid type")
-    img_np=np.array(im)
-
-    gray_img = cv2.cvtColor(img_np, cv2.COLOR_BGR2GRAY)
-    gray_img = cv2.resize(gray_img, (width, letterDim[1]), interpolation = cv2.INTER_CUBIC)
-
-    # add a beta value to every pixel 
-    cv2.add(gray_img, array_beta, gray_img)                    
-
-    # # multiply every pixel value by alpha
-    cv2.multiply(gray_img, array_alpha, gray_img)
-
-    width = 400
-    height = 400
-    image_pil = Image.new("RGB", (width, height), "white")
-    gray_img_pil = Image.fromarray(cv2.cvtColor(gray_img, cv2.COLOR_BGR2RGB))
-    image_pil.paste(gray_img_pil, (180, 170))
-
-    return image_pil
-
-def find_most_similar_image(target_image_path, directory):
-    """Finds the most similar image to the target image in the given directory.
-
-    Args:
-        target_image_path (str): Path to the target image.
-        directory (str): Path to the directory containing images to compare.
-
-    Returns:
-        str: Path to the most similar image.
-    """
-
-    max_ssim = -1
-    most_similar_image = None
-
-    target_image = cv2.imread(target_image_path)
-    target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
-
-    for filename in os.listdir(directory):
-        if filename.endswith((".jpg", ".png", ".jpeg")):
-            image_path = os.path.join(directory, filename)
-            image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-            # Resize images if necessary for SSIM calculation
-            if target_image.shape != image.shape:
-                image = cv2.resize(image, target_image.shape[:2])
-
-            ssim_value = ssim(target_image, image)
-            print(image_path, ssim_value)
-
-            if ssim_value > max_ssim:
-                max_ssim = ssim_value
-                most_similar_image = image_path
-
-    if max_ssim < 0.3:
-        print("No similar image found.")
-        return None
-
-    return most_similar_image[9:-4] # remove data/num/ and .png
-
-def preprocess_image(image_path):
-    image = cv2.imread(image_path)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-    return thresh
-
-def detect_letter(image_path):
-    reader = easyocr.Reader(['en'])
-    result = reader.readtext(image_path)
-
-    if result:
-        return result[0][1]
-    else:
+def get_image_pos_on_screen(image_path):  
+    try:
+        location = pyautogui.locateOnScreen(image_path, confidence=0.96)
+        center = pyautogui.center(location)
+        if location:
+            return center
+        else:
+            return None
+    except ImageNotFoundException:
         return None
 
 def getValue(str):
@@ -200,63 +123,58 @@ def getValue(str):
     elif str == '9' or str == '8' or str == '7' or str == '6' or str == '5' or str == '4' or str == '3' or str == '2':
         return int(str)
 
-def getCard(x, y, width=letterDim[0]):
-    num = captureGrayImage(x, y, width, 'num')
-    target_image_path = "tmp/tmp_num.png"
-    num.save(target_image_path)
+def getHand(x, y):
+    im=ImageGrab.grab(bbox=(x,y,x+width,y+height))
+    image=np.array(im)
 
-    # preprocessed_image = preprocess_image(target_image_path)
-    # detected_letter = detect_letter(preprocessed_image)
-    detected_letter = pytesseract.image_to_string(Image.open(target_image_path), config='--psm 10 -c tessedit_char_whitelist="AJQK0123456789"')
-    detected_letter = "".join(detected_letter.split())
-    print(f"found {detected_letter}")
+    # Convert to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    if detected_letter != 'A' and detected_letter != 'K' and detected_letter != 'Q' and detected_letter != 'J' and detected_letter != 'I0' and detected_letter != '10' and detected_letter != '1O' and detected_letter != 'IO' and detected_letter != '1Q' and detected_letter != 'IQ' and detected_letter != '1K' and detected_letter != '9' and detected_letter != '8' and detected_letter != '7' and detected_letter != '6' and detected_letter != '5' and detected_letter != '4' and detected_letter != '3' and detected_letter != '2' and detected_letter != '0' and detected_letter != '1':
-        num.save("tmp/tmp_problem.png")
-        if width == 1:
-            return -1
-        return getCard(x, y, width-1)
+    # Apply thresholding
+    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-    # global loop
-    # num.save("tmp/" + str(getValue(detected_letter)) + "/" + str(loop) + "_" + str(uuid.uuid4()) + ".png")
+    # Find contours
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    return detected_letter
+    # Sort contours by x-coordinate (to process ranks in order)
+    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
 
-def isPartnerReady(x, y, width=letterDim[0]):
-    num = captureGrayImage(x, y, width, 'num')
-    target_image_path = "tmp/tmp_num.png"
-    num.save(target_image_path)
+    rank_contours = []
 
-    # preprocessed_image = preprocess_image(target_image_path)
-    # detected_letter = detect_letter(preprocessed_image)
-    detected_letter = pytesseract.image_to_string(Image.open(target_image_path), config='--psm 10 -c tessedit_char_whitelist="AJQK0123456789"')
-    detected_letter = "".join(detected_letter.split())
-    print(f"check found {detected_letter}")
+    ranks = []
 
-    global loop
-    # num.save("tmp/" + str(getValue(detected_letter)) + "/" + str(loop) + "_check_" + str(uuid.uuid4()) + ".png")
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        
+        # Filter out small and large contours
+        if (w > 10 and w < 50) and (h > 42 and h < 50):
+            rank_contours.append(contour)
 
-    if detected_letter != 'A' and detected_letter != 'K' and detected_letter != 'Q' and detected_letter != 'J' and detected_letter != 'I0' and detected_letter != '10' and detected_letter != '1O' and detected_letter != 'IO' and detected_letter != '1Q' and detected_letter != 'IQ' and detected_letter != '1K' and detected_letter != '9' and detected_letter != '8' and detected_letter != '7' and detected_letter != '6' and detected_letter != '5' and detected_letter != '4' and detected_letter != '3' and detected_letter != '2' and detected_letter != '0' and detected_letter != '1':
-        num.save("tmp/tmp_problem.png")
-        if width == 1:
-            return False
-        return isPartnerReady(x, y, width-1)
-    return True
+    for rank_contour in rank_contours:
+        x, y, w, h = cv2.boundingRect(rank_contour)
+        # Extract ROI (Region of Interest)
+        roi = gray[y:y+h, x:x+w]
+        scaling = 32/h
+        roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_CUBIC)
+        _, roi = cv2.threshold(roi, 128, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
+        width = 400
+        height = 400
+        image_pil = Image.new("RGB", (width, height), "white")
+        gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
+        image_pil.paste(gray_img_pil, (180, 170))
+        # Use Tesseract to extract text
+        text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
+        boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
+        print(boxes)
+        plt.imshow(image_pil, cmap='gray')
+        plt.show()
+        print("Extracted Text:", text)
 
-
-def getHand(x, y, size):
-    hand = []
-    for i in range(size):
-        card = getCard(x, y)
-        hand.append(getValue(card))
-        x += cardGap
-    return hand
-
-def appendHand(x, y, hand):
-    x += cardGap*len(hand)
-    card = getCard(x, y)
-    hand.append(getValue(card))
-    return hand
+        text = text.strip()
+        
+        if text:
+            ranks.append(text)
+    print("Extracted Ranks:", ranks)
 
 def handTotal(hand):
     total = 0
@@ -433,35 +351,9 @@ def playGame(playerHand, dealerHand):
 
 if __name__ == "__main__":
 
-    if len(sys.argv) - 1 != 2:
-        print("Usage: python llAutoBj.py [number of hands] [bet size]")
+    if len(sys.argv) - 1 != 1:
+        print("Usage: python llAutoBj.py [number of hands]")
         sys.exit()
 
-    yag = yagmail.SMTP("abae.yusung@gmail.com", 'xlmj oqln whgl zhsc')
-
     while loop < int(sys.argv[1]):
-        loop += 1
-        print("checking for ready")
-        while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=25)):
-            time.sleep(0.2)
-        doAction("hit")
-
-        now = datetime.datetime.now()
-        timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"Starting hand {loop}/{sys.argv[1]} [{timestamp}]")
-
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=25)):
-            continue # player/dealer blackjack
-        splitStatus[0] = 'none'
-        if(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (116, 22, 98), tolerance=25)):
-            doAction("hit") # insurance
-        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=25):
-            continue # game over
-        playerHand = getHand(playerPos[0], playerPos[1], 2)
-        dealerHand = getHand(dealerPos[0], dealerPos[1], 1)
-        playGame(playerHand, dealerHand)
-
-        if loop >= target_cycle:
-            target_cycle += notify_cycle
-            yag.send("abae.yusung@gmail.com", contents=f"I'm on blackjack hand {loop}/{sys.argv[1]}")
-    yag.send("abae.yusung@gmail.com", contents="I finished playing blackjack 🎉!")
+        
