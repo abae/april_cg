@@ -14,39 +14,8 @@ import pytesseract
 import shutil
 import uuid
 import datetime
+import json
 
-
-# playerPos = (2286, 1241)
-# playerPosR = (2375, 1237)
-# playerPosRR = (2547, 1224)
-# playerPosRL = (2375, 1237)
-# playerPosL = (2177, 1237)
-# playerPosLR = (2177, 1237)
-# playerPosLL = (2040, 1224)
-# dealerPos = (2304, 972)
-# hitPos = (3092, 1535)
-# standPos = (1692, 1535)
-# splitPos = (1920, 1535)
-# doublePos = (2854, 1535)
-
-playerPos = (2286-1400, 1241-529)
-playerPosR = (2375-1400, 1237-529)
-playerPosRR = (2550-1400, 1224-529)
-playerPosRL = (2375-1400, 1237-529)
-playerPosL = (2177-1400, 1237-529)
-playerPosLR = (2177-1400, 1237-529)
-playerPosLL = (2040-1400, 1224-529)
-dealerPos = (2304-1400, 972-529)
-hitPos = (3092-1400, 1535-529)
-standPos = (1692-1400, 1535-529)
-splitPos = (1920-1400, 1535-529)
-doublePos = (2854-1400, 1535-529)
-
-repeatCol = (50, 0, 110)
-
-letterDim = (21, 29) #tried 26,24
-symDim = (21, 26)
-cardGap = 28
 splitStatus = ['none']
 
 image_contrast_alpha = 7.0
@@ -56,8 +25,7 @@ wait_count = 0
 max_wait_count = 300
 
 loop = 0
-notify_cycle = 50
-target_cycle = notify_cycle
+data = []
 
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
@@ -104,6 +72,19 @@ pairStrat = [
     [2,2,2,2,2,2,2,2,2,2]  # A,A
 ]
 
+def read_json_file(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            global data
+            data = json.load(file)
+            return
+    except FileNotFoundError:
+        print(f"Error: File not found at path: {file_path}")
+        return
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON format in file: {file_path}")
+        return
+
 def get_image_pos_on_screen(image_path):  
     try:
         location = pyautogui.locateOnScreen(image_path, confidence=0.96)
@@ -115,15 +96,10 @@ def get_image_pos_on_screen(image_path):
     except ImageNotFoundException:
         return None
 
-def getValue(str):
-    if str == 'A':
-        return 11
-    elif str == 'K' or str == 'Q' or str == 'J' or str == 'I0' or str == '10' or str == '1O' or str == 'IO' or str == '1Q' or str == 'IQ' or str == '1K' or str == '0' or str == '1':
-        return 10
-    elif str == '9' or str == '8' or str == '7' or str == '6' or str == '5' or str == '4' or str == '3' or str == '2':
-        return int(str)
-
 def getHand(x, y):
+    global data
+    width = data['rank_width']
+    height = data['rank_height']
     im=ImageGrab.grab(bbox=(x,y,x+width,y+height))
     image=np.array(im)
 
@@ -141,6 +117,7 @@ def getHand(x, y):
 
     rank_contours = []
 
+    texts = []
     ranks = []
 
     for contour in contours:
@@ -165,16 +142,23 @@ def getHand(x, y):
         # Use Tesseract to extract text
         text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
         boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
-        print(boxes)
-        plt.imshow(image_pil, cmap='gray')
-        plt.show()
-        print("Extracted Text:", text)
 
         text = text.strip()
         
         if text:
-            ranks.append(text)
-    print("Extracted Ranks:", ranks)
+            texts.append(text)
+    for i in range(len(texts)):
+        if texts[i] == 'A':
+            ranks.append(11)
+        elif texts[i] == 'K' or texts[i] == 'Q' or texts[i] == 'J':
+            ranks.append(10)
+        elif texts[i] == "1":
+            if i+1 < len(texts) and texts[i+1] == '0':
+                ranks.append(10)
+                i += 1  # Skip the next character
+        else:
+            ranks.append(getValue(texts[i]))
+    return ranks
 
 def handTotal(hand):
     total = 0
@@ -214,32 +198,24 @@ def playHand(playerHand, dealerHand):
     elif strat == 4:
         return "double/stand"
 
+def checkForButton(button):
+    pos = get_image_pos_on_screen(f"./{sys.argv[1]}/{button}.png")
+    if pos is not None:
+        return True
+    return False
+
 def waitForReady():
-    global wait_count
-    global max_wait_count
-    print("waiting for go")
-    time.sleep(0.2)
-    while(not pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=25)):
+    while True:
+        if get_image_pos_on_screen(f"./{sys.argv[1]}/hit.png") != None:
+            return "hit"
+        if get_image_pos_on_screen(f"./{sys.argv[1]}/again.png") != None:
+            return "again"
+        if get_image_pos_on_screen(f"./{sys.argv[1]}/no_ins.png") != None:
+            doAction("no_ins")
+        if get_image_pos_on_screen(f"./{sys.argv[1]}/confirm_ins.png") != None:
+            doAction("confirm_ins")
+        
         time.sleep(0.2)
-        pyautogui.click()
-    print("waiting for ready")
-    while(pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], (0, 0, 0), tolerance=25)):
-        time.sleep(0.2)
-        wait_count += 1
-        if wait_count > max_wait_count:
-            clickMouse(292, 199)
-            time.sleep(5)
-            clickMouse(278, 314)
-            time.sleep(0.2)
-            clickMouse(574, 448)
-            time.sleep(8)
-            if(not pyautogui.pixelMatchesColor(1008, 884, (69, 153, 232), tolerance=10)):
-                for i in range(int(sys.argv[2])):
-                    clickMouse(784, 726)
-                    time.sleep(1)
-            clickMouse(hitPos[0], hitPos[1])
-            wait_count = 0
-    wait_count = 0
 
 def clickMouse(x, y):
     pyautogui.moveTo(x+(random.random()*10)-5, y+(random.random()*10)-5, 0.5+random.random(), pyautogui.easeOutQuad)
@@ -247,15 +223,13 @@ def clickMouse(x, y):
 
 
 def doAction(action):
-    if action == "hit" or action == "end":
-        clickMouse(hitPos[0], hitPos[1])
-    elif action == "stand":
-        clickMouse(standPos[0], standPos[1])
-    elif action == "split":
-        clickMouse(splitPos[0], splitPos[1])
-    elif action == "double":
-        clickMouse(doublePos[0], doublePos[1])
-    waitForReady()
+    pos = get_image_pos_on_screen(f"./{sys.argv[1]}/{action}.png")
+    while(pos == None):
+        time.sleep(0.2)
+        pos = get_image_pos_on_screen(f"./{sys.argv[1]}/{action}.png")
+    clickMouse(pos[0], pos[1])
+
+    return waitForReady()
 
 def playGame(playerHand, dealerHand):
     print(playerHand, dealerHand)
@@ -351,9 +325,26 @@ def playGame(playerHand, dealerHand):
 
 if __name__ == "__main__":
 
-    if len(sys.argv) - 1 != 1:
-        print("Usage: python llAutoBj.py [number of hands]")
+    if len(sys.argv) - 1 != 2:
+        print("Usage: python llAutoBj.py [type] [number of hands]")
         sys.exit()
 
-    while loop < int(sys.argv[1]):
-        
+    read_json_file(f"./{sys.argv[1]}/data.json")
+    print(f"Starting {sys.argv[1]} with {sys.argv[2]} hands")
+
+    while loop < int(sys.argv[2]):
+        print("checking for ready")
+        status = doAction("again")
+        loop += 1
+
+        if status == "again":
+            continue
+        if status == "hit":
+            now = datetime.datetime.now()
+            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
+
+            splitStatus[0] = 'none'
+            playerHand = getHand(data['x'], data['y'])
+            dealerHand = getHand(data['x'] + data['dealx'], data['y'] + data['dealy'])
+            playGame(playerHand, dealerHand)
