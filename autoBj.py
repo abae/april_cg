@@ -16,7 +16,7 @@ import uuid
 import datetime
 import json
 
-splitStatus = ['none']
+splitStatus = 'none'
 
 image_contrast_alpha = 7.0
 image_contrast_beta = -80.0
@@ -178,7 +178,7 @@ def handTotalHigh(hand):
     return total
 
 def getStrat(hand, dealer):
-    if len(hand) == 2 and hand[0] == hand[1] and (splitStatus[0] == 'none' or splitStatus[0] == 'R' or splitStatus[0] == 'L'):
+    if len(hand) == 2 and hand[0] == hand[1] and (splitStatus == 'none' or splitStatus == 'R' or splitStatus == 'L'):
         return pairStrat[hand[0]-2][dealer-2]
     elif 11 in hand and handTotalHigh(hand) < 21:
         return softStrat[handTotal(hand)-13][dealer-2]
@@ -231,12 +231,17 @@ def doAction(action):
 
     return waitForReady()
 
-def playGame(playerHand, dealerHand):
+def playGame(splitStatus, dealerHand):
+    if splitStatus == 'none':
+        playerHand = getHand(data[splitStatus]['x'], data[splitStatus]['y'])
+    else:
+        playerHand = getHand(data[splitStatus]['x'] + data['none']['x'], data[splitStatus]['y'] + data['none']['y'])
     print(playerHand, dealerHand)
     print(splitStatus)
     global loop
     if handTotal(playerHand) >= 21:
         return "end" #shouldn't be here. Read error
+    #Find out the play
     playerAction = playHand(playerHand, dealerHand)
     print(playerAction)
     if playerAction == "double/hit":
@@ -249,39 +254,12 @@ def playGame(playerHand, dealerHand):
             playerAction = "double"
         else:
             playerAction = "stand"
+    # Begin player action
     if playerAction == "hit":
-        doAction("hit")
-        print(f"seeing {pyautogui.pixel(hitPos[0], hitPos[1])}")
-        if pyautogui.pixelMatchesColor(hitPos[0], hitPos[1], repeatCol, tolerance=25):
+        if doAction("hit") == "again":
             return "end" # player bust
-        if splitStatus[0] == 'none':
-            if(isPartnerReady(playerPos[0] + (cardGap*len(playerHand)), playerPos[1])):
-                playerHand = appendHand(playerPos[0], playerPos[1], playerHand)
-                playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'R':
-            if(isPartnerReady(playerPosR[0] + (cardGap*len(playerHand)), playerPosR[1])):
-                playerHand = appendHand(playerPosR[0], playerPosR[1], playerHand)
-                playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'RR':
-            if(isPartnerReady(playerPosRR[0] + (cardGap*len(playerHand)), playerPosRR[1])):
-                playerHand = appendHand(playerPosRR[0], playerPosRR[1], playerHand)
-                playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'RL':
-            if(isPartnerReady(playerPosRL[0] + (cardGap*len(playerHand)), playerPosRL[1])):
-                playerHand = appendHand(playerPosRL[0], playerPosRL[1], playerHand)
-                playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'L':
-            if(isPartnerReady(playerPosL[0] + (cardGap*len(playerHand)), playerPosL[1])):
-                playerHand = appendHand(playerPosL[0], playerPosL[1], playerHand)
-                playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'LR':
-            if(isPartnerReady(playerPosLR[0] + (cardGap*len(playerHand)), playerPosLR[1])):
-                playerHand = appendHand(playerPosLR[0], playerPosLR[1], playerHand)
-                playGame(playerHand, dealerHand)
-        elif splitStatus[0] == 'LL':
-            if(isPartnerReady(playerPosLL[0] + (cardGap*len(playerHand)), playerPosLL[1])):
-                playerHand = appendHand(playerPosLL[0], playerPosLL[1], playerHand)
-                playGame(playerHand, dealerHand)
+        playerHand = getHand(data[splitStatus]['x'], data[splitStatus]['y'])
+        playGame(playerHand, dealerHand)
     elif playerAction == "stand":
         doAction("stand")
         return "end"
@@ -290,33 +268,15 @@ def playGame(playerHand, dealerHand):
         loop += 1
         if(playerHand[0] == 11 and playerHand[1] == 11):
             return "end"
-        if splitStatus[0] == 'none':
-            splitStatus[0] = 'R'
-            if(isPartnerReady(playerPosR[0], playerPosR[1])):
-                playerHandR = appendHand(playerPosR[0], playerPosR[1], [playerHand[1]])
-                playGame(playerHandR, dealerHand)
-            splitStatus[0] = 'L'
-            if(isPartnerReady(playerPosL[0], playerPosL[1])):
-                playerHandL = appendHand(playerPosL[0], playerPosL[1], [playerHand[0]])
-                playGame(playerHandL, dealerHand)
-        elif splitStatus[0] == 'R':
-            splitStatus[0] = 'RR'
-            if(isPartnerReady(playerPosRR[0], playerPosRR[1])):
-                playerHandR = appendHand(playerPosRR[0], playerPosRR[1], [playerHand[1]])
-                playGame(playerHandR, dealerHand)
-            splitStatus[0] = 'RL'
-            if(isPartnerReady(playerPosRL[0], playerPosRL[1])):
-                playerHandL = appendHand(playerPosRL[0], playerPosRL[1], [playerHand[0]])
-                playGame(playerHandL, dealerHand)
-        elif splitStatus[0] == 'L':
-            splitStatus[0] = 'LR'
-            if(isPartnerReady(playerPosLR[0], playerPosLR[1])):
-                playerHandR = appendHand(playerPosLR[0], playerPosLR[1], [playerHand[1]])
-                playGame(playerHandR, dealerHand)
-            splitStatus[0] = 'LL'
-            if(isPartnerReady(playerPosLL[0], playerPosLL[1])):
-                playerHandL = appendHand(playerPosLL[0], playerPosLL[1], [playerHand[0]])
-                playGame(playerHandL, dealerHand)
+        if splitStatus == 'none':
+            playGame('R', dealerHand)
+            playGame('L', dealerHand)
+        elif splitStatus == 'R':
+            playGame('RR', dealerHand)
+            playGame('RL', dealerHand)
+        elif splitStatus == 'L':
+            playGame('LR', dealerHand)
+            playGame('LL', dealerHand)
     elif playerAction == "double":
         doAction("double")
         loop += 1
@@ -344,7 +304,6 @@ if __name__ == "__main__":
             timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
             print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
 
-            splitStatus[0] = 'none'
-            playerHand = getHand(data['x'], data['y'])
-            dealerHand = getHand(data['x'] + data['dealx'], data['y'] + data['dealy'])
-            playGame(playerHand, dealerHand)
+            splitStatus = 'none'
+            dealerHand = getHand(data['none']['x'] + data['deal']['x'], data['none']['y'] + data['deal']['y'])
+            playGame(splitStatus, dealerHand)
