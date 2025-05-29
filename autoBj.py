@@ -22,7 +22,7 @@ image_contrast_alpha = 7.0
 image_contrast_beta = -80.0
 
 wait_count = 0
-max_wait_count = 300
+max_wait_count = 50
 
 loop = 0
 data = []
@@ -234,7 +234,7 @@ def handTotalHigh(hand):
 def getStrat(hand, dealer):
     if len(hand) == 2 and hand[0] == hand[1] and (splitStatus == 'none' or splitStatus == 'R' or splitStatus == 'L'):
         return pairStrat[hand[0]-2][dealer-2]
-    elif 11 in hand and handTotalHigh(hand) < 21:
+    elif 11 in hand and handTotalHigh(hand) <= 21:
         return softStrat[handTotal(hand)-13][dealer-2]
     else:
         return hardStrat[handTotal(hand)-5][dealer-2]
@@ -253,9 +253,10 @@ def playHand(playerHand, dealerHand):
         return "double/stand"
 
 def checkForButton(button):
-    pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{button}.png")
-    if pos is not None:
-        return True
+    for i in range(max_wait_count):
+        pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{button}.png")
+        if pos is not None:
+            return True
     return False
 
 def waitForReady():
@@ -284,11 +285,11 @@ def doAction(action):
         print(f"Looking for {action}")
         time.sleep(0.2)
         pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{action}.png")
-        if (get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None):
+        if action != "again" and (get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None):
             pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png")
             gameOver = True
-    clickMouse(pos[0], pos[1])
-
+    if not gameOver:
+        clickMouse(pos[0], pos[1])
     return waitForReady()
 
 def playGame(splitStatus, dealerHand):
@@ -302,17 +303,18 @@ def playGame(splitStatus, dealerHand):
     print(splitStatus)
     global loop
     if handTotal(playerHand) >= 21:
+        doAction("stand")
         return "end" #shouldn't be here. Read error
     #Find out the play
     playerAction = playHand(playerHand, dealerHand)
     print(playerAction)
     if playerAction == "double/hit":
-        if len(playerHand) == 2:
+        if len(playerHand) == 2 and  checkForButton("double"):
             playerAction = "double"
         else:
             playerAction = "hit"
     if playerAction == "double/stand":
-        if len(playerHand) == 2:
+        if len(playerHand) == 2 and  checkForButton("double"):
             playerAction = "double"
         else:
             playerAction = "stand"
@@ -367,6 +369,9 @@ if __name__ == "__main__":
             file.unlink()
 
     while loop < int(sys.argv[2]):
+        gameOver = False
+        num_split = 0
+        splitStatus = 'none'
         print("checking for ready")
         status = doAction("again")
         loop += 1
@@ -383,8 +388,5 @@ if __name__ == "__main__":
             timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
             print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
 
-            gameOver = False
-            num_split = 0
-            splitStatus = 'none'
             dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'])
             playGame(splitStatus, dealerHand)

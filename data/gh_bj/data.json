@@ -1,4 +1,5 @@
 {
+    "double_only_first": true,
     "resplit_ace": true,
     "ace_split_play": false,
     "max_split": 2,
@@ -9,7 +10,7 @@
         "h": 680
     },
     "rank_height": 65,
-    "rank_width": 200,
+    "rank_width": 240,
     "deal":{
         "x": 45,
         "y": -522
