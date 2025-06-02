@@ -141,8 +141,8 @@ def get_image_pos_on_screen(image_path):
 
 def getHand(x, y):
     global data
-    width = data['rank_width']
-    height = data['rank_height']
+    width = data['read_width']
+    height = data['read_height']
     im=ImageGrab.grab(bbox=(x,y,x+width,y+height))
     im.save(f"./data/{sys.argv[1]}/{x}.{y}.png")
     image=np.array(im)
@@ -168,7 +168,7 @@ def getHand(x, y):
         x, y, w, h = cv2.boundingRect(contour)
         
         # Filter out small and large contours
-        if (w > 5 and w < 50) and (h > 28 and h < 50):
+        if (w > data['rank']['minw'] and w < data['rank']['maxw']) and (h > data['rank']['minh'] and h < data['rank']['maxh']):
             rank_contours.append(contour)
 
     for rank_contour in rank_contours:
@@ -266,12 +266,8 @@ def waitForReady():
             return "hit"
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None:
             return "again"
-        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/deal.png") != None:
-            doAction("deal")
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/no_ins.png") != None:
             doAction("no_ins")
-        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/confirm_ins.png") != None:
-            doAction("confirm_ins")
 
 def clickMouse(x, y):
     pyautogui.moveTo(x+(random.random()*10)-5, y+(random.random()*10)-5, 0.1+(random.random()*0.05), pyautogui.easeOutQuad)

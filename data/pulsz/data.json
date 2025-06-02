@@ -2,30 +2,28 @@
     "double_only_first": false,
     "resplit_ace": true,
     "ace_split_play": true,
-    "max_split": 2,
+    "max_split": 1,
     "check_area":{
-        "x": -231,
-        "y": -206,
-        "w": 750,
-        "h": 680
+        "x": -21,
+        "y": 450,
+        "w": 900,
+        "h": 170
     },
     "rank":{
-        "minx": 14,
-        "maxx": 35,
-        "miny": 25,
-        "maxy": 28
+        "minw": 5,
+        "maxw": 33,
+        "minh": 33,
+        "maxh": 47
     },
+    "read_width": 250,
     "read_height": 110,
-    "read_width": 220,
     "deal":{
-        "x": 10,
-        "y": -362
+        "x": 0,
+        "y": -385
     },
     "none":{
-        "x": 2228,
-        "y": 750,
-        "savex": 935,
-        "savey": 726
+        "x": 2519,
+        "y": 771
     },
     "L": {
         "x": -173,
