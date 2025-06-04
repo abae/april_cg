@@ -15,6 +15,7 @@ import shutil
 import uuid
 import datetime
 import json
+import mss
 
 gameOver = False
 num_split = 0
@@ -26,6 +27,11 @@ max_wait_count = 10
 
 loop = 0
 data = []
+
+# Setup screen capture
+template = cv2.imread("data/chumba/arrow.png", 0)
+sct = mss.mss()
+monitor = {}
 
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
@@ -85,6 +91,27 @@ def read_json_file(file_path):
         print(f"Error: Invalid JSON format in file: {file_path}")
         return
 
+def find_indicator():
+    global data
+    global template
+    global sct
+    global monitor
+    w, h = template.shape[::-1]
+    while True:
+        frame = np.array(sct.grab(monitor))
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        processed = cv2.equalizeHist(gray)
+
+        # Match template
+        result = cv2.matchTemplate(processed, template, cv2.TM_CCOEFF_NORMED)
+        threshold = 0.8  # Adjust depending on fade level
+        loc = np.where(result >= threshold)
+
+        for pt in zip(*loc[::-1]):
+            cv2.rectangle(frame, pt, (pt[0]+w, pt[1]+h), (0, 255, 0), 2)
+            return pt[0]+(w/2), pt[1]+(h/2)
+
+
 def get_image_pos_on_screen(image_path):  
     try:
         global data
@@ -109,7 +136,8 @@ def getHand(x, y):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply thresholding
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+    _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite("data/chumba/.tmp/target.png", thresh)
 
     # Find contours
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -136,16 +164,20 @@ def getHand(x, y):
         scaling = 32/h
         roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_CUBIC)
         _, roi = cv2.threshold(roi, 128, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
+
         width = 200
         height = 200
         image_pil = Image.new("RGB", (width, height), "white")
         gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
         image_pil.paste(gray_img_pil, (100, 100))
+        # image_np = np.array(image_pil)
+        # kernel = np.ones((2, 2), np.uint8)  # you can try (1,2) or (2,1) for directional slimming
+        # eroded = cv2.erode(image_np, kernel, iterations=1)
+        # image_pil = Image.fromarray(cv2.cvtColor(eroded, cv2.COLOR_BGR2RGB))
         image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{x}_{y}.png")
         # Use Tesseract to extract text
         text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
         #boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
-
         text = text.strip()
         
         if text:
@@ -204,7 +236,7 @@ def checkForButton(button):
     return False
 
 def waitForReady():
-    time.sleep(0.2)
+    time.sleep(0.5)
     while True:
         print("Looking for object")
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/hit.png") != None:
@@ -233,15 +265,13 @@ def doAction(action):
         clickMouse(pos[0], pos[1])
     return waitForReady()
 
-def playGame(splitStatus, dealerHand):
+def playGame(dealerHand):
     if gameOver:
         return "end"
-    if splitStatus == 'none':
-        playerHand = getHand(data[splitStatus]['x'], data[splitStatus]['y'])
-    else:
-        playerHand = getHand(data[splitStatus]['x'] + data['none']['x'], data[splitStatus]['y'] + data['none']['y'])
+    waitForReady()
+    ind_x, ind_y = find_indicator()
+    playerHand = getHand(data['none']['x'] + data['indicator_area']['x'] + ind_x + data['indicator_offset']['x'], data['none']['y'] + data['indicator_area']['y'] + ind_y + data['indicator_offset']['y'])
     print(playerHand, dealerHand)
-    print(splitStatus)
     global loop
     if handTotal(playerHand) >= 21:
         doAction("stand")
@@ -263,31 +293,18 @@ def playGame(splitStatus, dealerHand):
     if playerAction == "hit":
         if doAction("hit") == "again":
             return "end" # player bust
-        playGame(splitStatus, dealerHand)
+        playGame(dealerHand)
     elif playerAction == "stand":
         doAction("stand")
         return "end"
     elif playerAction == "split":
-        global num_split
-        doAction("split")
-        num_split += 1
         loop += 1
-        if not data['ace_split_play']:
-            if data['resplit_ace']:
-                doAction('split')
+        if doAction("split") == "again":
             return "end"
-        if splitStatus == 'none':
-            playGame('R', dealerHand)
-            playGame('L', dealerHand)
-        elif splitStatus == 'R':
-            playGame('RR', dealerHand)
-            playGame('RL', dealerHand)
-        elif splitStatus == 'L':
-            playGame('LR', dealerHand)
-            playGame('LL', dealerHand)
+        playGame(dealerHand)
     elif playerAction == "double":
-        doAction("double")
         loop += 1
+        doAction("double")
         return "end"
 
 
@@ -305,10 +322,12 @@ if __name__ == "__main__":
         if file.is_file():
             file.unlink()
 
+    monitor = {"left": data['none']['x'] + data['indicator_area']['x'], "top": data['none']['x'] + data['indicator_area']['y'], "width": data['indicator_area']['w'], "height": data['indicator_area']['h']}
+
     while loop < int(sys.argv[2]):
         gameOver = False
-        num_split = 0
         splitStatus = 'none'
+        num_split = 0
         print("checking for ready")
         status = doAction("again")
         loop += 1
@@ -326,4 +345,4 @@ if __name__ == "__main__":
             print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
 
             dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'])
-            playGame(splitStatus, dealerHand)
+            playGame(dealerHand)

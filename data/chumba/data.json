@@ -1,0 +1,34 @@
+{
+    "check_area":{
+        "x": -530,
+        "y": -270,
+        "w": 982,
+        "h": 620
+    },
+    "indicator_area":{
+        "x": -478,
+        "y": -191,
+        "w": 1200,
+        "h": 241
+    },
+    "indicator_offset":{
+        "x": -44,
+        "y": 36
+    },
+    "read_width": 88,
+    "read_height": 31,
+    "rank":{
+        "minw": 0,
+        "maxw": 20,
+        "minh": 5,
+        "maxh": 22
+    },
+    "deal":{
+        "x": 0,
+        "y": -412
+    },
+    "none":{
+        "x": 2206,
+        "y": 2195
+    }
+}
