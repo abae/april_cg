@@ -136,8 +136,8 @@ def getHand(x, y):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply thresholding
-    _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
-    cv2.imwrite("data/chumba/.tmp/target.png", thresh)
+    _, thresh = cv2.threshold(gray, 115, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite(f"data/{sys.argv[1]}/.tmp/target.png", thresh)
 
     # Find contours
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -162,18 +162,27 @@ def getHand(x, y):
         # Extract ROI (Region of Interest)
         roi = gray[y:y+h, x:x+w]
         scaling = 32/h
-        roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_CUBIC)
-        _, roi = cv2.threshold(roi, 128, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
+        roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_LANCZOS4)
+        # kernel = np.ones((2, 2), np.uint8)  # you can try (1,2) or (2,1) for directional slimming
+        # roi = cv2.erode(roi, kernel, iterations=1)
 
-        width = 200
-        height = 200
+        width = 400
+        height = 400
         image_pil = Image.new("RGB", (width, height), "white")
         gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
-        image_pil.paste(gray_img_pil, (100, 100))
-        # image_np = np.array(image_pil)
-        # kernel = np.ones((2, 2), np.uint8)  # you can try (1,2) or (2,1) for directional slimming
-        # eroded = cv2.erode(image_np, kernel, iterations=1)
-        # image_pil = Image.fromarray(cv2.cvtColor(eroded, cv2.COLOR_BGR2RGB))
+        image_pil.paste(gray_img_pil, ((width-w)//2, (height-h)//2))
+
+        # image_pil.resize((int(width*scaling), int(height*scaling)), Image.Resampling.LANCZOS)
+
+        image_np = np.array(image_pil)
+        _, image_np = cv2.threshold(image_np, 128, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
+        kernel = np.ones((3, 3), np.uint8)  # you can try (1,2) or (2,1) for directional slimming
+        image_np = 255 - image_np
+        image_np = cv2.morphologyEx(image_np, cv2.MORPH_OPEN, kernel)
+        image_np = cv2.erode(image_np, kernel, iterations=1)
+        image_np = cv2.morphologyEx(image_np, cv2.MORPH_OPEN, kernel)
+        image_np = 255 - image_np
+        image_pil = Image.fromarray(cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB))
         image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{x}_{y}.png")
         # Use Tesseract to extract text
         text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
@@ -184,18 +193,40 @@ def getHand(x, y):
             print(f"found {text}")
             texts += text
         else:
-            print(f"failed to find see contour {sys.argv[1]} (assuming it's 4)")
-            texts += '4'
-            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{sys.argv[1]}_{x}_{y}.png")
+            global loop
+            print(f"failed to find see contour {sys.argv[1]} retrying...")
+            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{sys.argv[1]}_{loop}_{x}_{y}.png")
+            image_np = 255 - image_np
+            kernel = np.ones((2, 2), np.uint8)  # you can try (1,2) or (2,1) for directional slimming
+            image_np = cv2.erode(image_np, kernel, iterations=1)
+            image_np = 255 - image_np
+            image_pil = Image.fromarray(cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB))
+            text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
+            text = text.strip()
+            if text:
+                print(f"found {text}")
+                texts += text
+            else:
+                print(f"failed again... Assuming it's 4?")
+                texts += '4'
+                image_pil.save(f"./data/{sys.argv[1]}/error/contour_pass2_{sys.argv[1]}_{loop}_{x}_{y}.png")
+
+
+            
     result = texts.split("/")
     if(len(result) == 2):
         hand.append(True)
         result[0] = result[1]
+        if len(result[0]) == 1:
+            result[0] = '1' + result[0]
     elif(len(result) == 1):
         hand.append(False)
     else:
         print("Error, more than one delimiter detected")
     hand.append(int(result[0]))
+    if (hand[1] >= 21):
+        print("Error, detected result higher than 21")
+        return
     return hand
 
 def handTotal(hand):
@@ -236,15 +267,19 @@ def checkForButton(button):
     return False
 
 def waitForReady():
-    time.sleep(0.5)
     while True:
         print("Looking for object")
+        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/no_ins.png") != None:
+            doAction("no_ins")
+            while True:
+                if get_image_pos_on_screen(f"./data/{sys.argv[1]}/hit.png") != None:
+                    return "no_ins"
+                if get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None:
+                    return "again"
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/hit.png") != None:
             return "hit"
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None:
             return "again"
-        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/no_ins.png") != None:
-            doAction("no_ins")
 
 def clickMouse(x, y):
     pyautogui.moveTo(x+(random.random()*10)-5, y+(random.random()*10)-5, 0.1+(random.random()*0.05), pyautogui.easeOutQuad)
@@ -263,6 +298,7 @@ def doAction(action):
             gameOver = True
     if not gameOver:
         clickMouse(pos[0], pos[1])
+        time.sleep(2)
     return waitForReady()
 
 def playGame(dealerHand):
@@ -302,6 +338,7 @@ def playGame(dealerHand):
         if doAction("split") == "again":
             return "end"
         playGame(dealerHand)
+        playGame(dealerHand)
     elif playerAction == "double":
         loop += 1
         doAction("double")
@@ -339,10 +376,15 @@ if __name__ == "__main__":
 
         if status == "again":
             continue
-        if status == "hit":
+        if status == "hit" or status == "no_ins":
+            time.sleep(2.0)
+            waitForReady()
             now = datetime.datetime.now()
             timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
             print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
 
-            dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'])
+            if status == "no_ins":
+                dealerHand = [True, 11]
+            else:
+                dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'])
             playGame(dealerHand)
