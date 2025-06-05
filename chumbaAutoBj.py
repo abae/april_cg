@@ -272,10 +272,15 @@ def waitForReady():
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/no_ins.png") != None:
             doAction("no_ins")
             while True:
+                print("Getting post no ins")
+                if get_image_pos_on_screen(f"./data/{sys.argv[1]}/continue.png") != None:
+                    doAction("continue")
                 if get_image_pos_on_screen(f"./data/{sys.argv[1]}/hit.png") != None:
                     return "no_ins"
                 if get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None:
                     return "again"
+        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/continue.png") != None:
+            doAction("continue")
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/hit.png") != None:
             return "hit"
         if get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None:
@@ -296,6 +301,8 @@ def doAction(action):
         if action != "again" and (get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None):
             pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png")
             gameOver = True
+        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/continue.png") != None:
+            doAction("continue")
     if not gameOver:
         clickMouse(pos[0], pos[1])
         time.sleep(2)
