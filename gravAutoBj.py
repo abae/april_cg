@@ -96,12 +96,12 @@ def get_image_pos_on_screen(image_path):
     except ImageNotFoundException:
         return None
 
-def getHand(x, y):
+def getHand(xHand, yHand, threshold=180):
     global data
     width = data['read_width']
     height = data['read_height']
-    im=ImageGrab.grab(bbox=(x,y,x+width,y+height))
-    im.save(f"./data/{sys.argv[1]}/{x}.{y}.png")
+    im=ImageGrab.grab(bbox=(xHand,yHand,xHand+width,yHand+height))
+    im.save(f"./data/{sys.argv[1]}/{xHand}.{yHand}.png")
     image=np.array(im)
 
     # Convert to grayscale
@@ -135,13 +135,13 @@ def getHand(x, y):
         roi = gray[y:y+h, x:x+w]
         scaling = 32/h
         roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_CUBIC)
-        _, roi = cv2.threshold(roi, 180, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
+        _, roi = cv2.threshold(roi, threshold, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
         width = 200
         height = 200
         image_pil = Image.new("RGB", (width, height), "white")
         gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
         image_pil.paste(gray_img_pil, (100, 100))
-        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{x}_{y}.png")
+        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{xHand}_{yHand}.png")
         # Use Tesseract to extract text
         text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
         #boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
@@ -152,10 +152,10 @@ def getHand(x, y):
             print(f"found {text}")
             texts += text
         else:
-            print(f"failed to find see contour {sys.argv[1]} (assuming it's 9)")
-            texts += '9'
+            print(f"failed to find see contour {sys.argv[1]} (assuming it's 6)")
+            texts += '6'
             global loop
-            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{loop}_{x}_{y}.png")
+            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{loop}_{xHand}_{yHand}.png")
     if texts.find("111") != -1:
         texts = "1/11"
     result = texts.split("/")
@@ -307,6 +307,7 @@ if __name__ == "__main__":
         num_split = 0
         splitStatus = 'none'
         print("checking for ready")
+        doAction("10")
         status = doAction("again")
         loop += 1
 
@@ -322,7 +323,7 @@ if __name__ == "__main__":
             timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
             print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
 
-            dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'])
+            dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'], 100)
             if dealerHand[1] > 10 and not dealerHand[0]:
                 dealerHand[1] = 10
             playGame(splitStatus, dealerHand)
