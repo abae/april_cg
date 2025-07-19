@@ -9,13 +9,10 @@ import random
 import sys
 from matplotlib import pyplot as plt
 from PIL import Image, ImageGrab
-import imagehash
 import pytesseract
-import shutil
-import uuid
 import datetime
 import json
-
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 gameOver = False
 num_split = 0
 image_contrast_alpha = 7.0
@@ -96,12 +93,13 @@ def get_image_pos_on_screen(image_path):
     except ImageNotFoundException:
         return None
 
-def getHand(x, y):
+def getHand(xHand, yHand):
     global data
+    global loop
     width = data['read_width']
     height = data['read_height']
-    im=ImageGrab.grab(bbox=(x,y,x+width,y+height))
-    im.save(f"./data/{sys.argv[1]}/{x}.{y}.png")
+    im=ImageGrab.grab(bbox=(xHand,yHand,xHand+width,yHand+height))
+    im.save(f"./data/{loop}/{xHand}.{yHand}.png")
     image=np.array(im)
 
     # Convert to grayscale
@@ -109,7 +107,7 @@ def getHand(x, y):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply thresholding
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+    _, thresh = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
 
     # Find contours
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -141,7 +139,7 @@ def getHand(x, y):
         image_pil = Image.new("RGB", (width, height), "white")
         gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
         image_pil.paste(gray_img_pil, (100, 100))
-        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{x}_{y}.png")
+        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{xHand}_{yHand}.png")
         # Use Tesseract to extract text
         text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
         #boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
@@ -154,7 +152,7 @@ def getHand(x, y):
         else:
             print(f"failed to find see contour {sys.argv[1]} (assuming it's 4)")
             texts += '4'
-            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{sys.argv[1]}_{x}_{y}.png")
+            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{loop}_{xHand}_{yHand}.png")
     result = texts.split("/")
     if(len(result) == 2):
         hand.append(True)

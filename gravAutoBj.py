@@ -8,13 +8,15 @@ import numpy as np
 import random
 import sys
 from matplotlib import pyplot as plt
-from PIL import Image, ImageGrab
+from PIL import Image, ImageGrab, ImageFilter
 import imagehash
 import pytesseract
 import shutil
 import uuid
 import datetime
 import json
+
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 gameOver = False
 num_split = 0
@@ -96,12 +98,13 @@ def get_image_pos_on_screen(image_path):
     except ImageNotFoundException:
         return None
 
-def getHand(x, y):
+def getHand(xHand, yHand, threshold=180):
     global data
+    global loop
     width = data['read_width']
     height = data['read_height']
-    im=ImageGrab.grab(bbox=(x,y,x+width,y+height))
-    im.save(f"./data/{sys.argv[1]}/{x}.{y}.png")
+    im=ImageGrab.grab(bbox=(xHand,yHand,xHand+width,yHand+height))
+    im.save(f"./data/{sys.argv[1]}/{xHand}.{yHand}.png")
     image=np.array(im)
 
     # Convert to grayscale
@@ -109,7 +112,7 @@ def getHand(x, y):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply thresholding
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+    _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
 
     # Find contours
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -135,15 +138,20 @@ def getHand(x, y):
         roi = gray[y:y+h, x:x+w]
         scaling = 32/h
         roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_CUBIC)
-        _, roi = cv2.threshold(roi, 180, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
+        _, roi = cv2.threshold(roi, threshold, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
         width = 200
         height = 200
         image_pil = Image.new("RGB", (width, height), "white")
         gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
         image_pil.paste(gray_img_pil, (100, 100))
-        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{x}_{y}.png")
+        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{xHand}_{yHand}.png")
         # Use Tesseract to extract text
         text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
+        image_pil_smooth = image_pil.filter(ImageFilter.SMOOTH)
+        image_pil_smoother = image_pil.filter(ImageFilter.SMOOTH_MORE)
+        text_smooth = pytesseract.image_to_string(image_pil_smooth, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
+        text_smoother = pytesseract.image_to_string(image_pil_smoother, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
+
         #boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
 
         text = text.strip()
@@ -151,11 +159,19 @@ def getHand(x, y):
         if text:
             print(f"found {text}")
             texts += text
+        elif text_smooth:
+            print(f"found {text_smooth}")
+            texts += text_smooth
+        elif text_smoother:
+            print(f"found {text_smoother}")
+            texts += text_smoother
         else:
-            print(f"failed to find see contour {sys.argv[1]} (assuming it's 9)")
-            texts += '9'
-            global loop
-            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{loop}_{x}_{y}.png")
+            print(f"failed to find see contour {sys.argv[1]} (assuming it's 6)")
+            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{loop}_{xHand}_{yHand}.png")
+            if checkForButton("hit"):
+                return getHand(xHand,yHand, threshold+random.randrange(-20,20))
+            else:
+                return 
     if texts.find("111") != -1:
         texts = "1/11"
     result = texts.split("/")
@@ -167,6 +183,12 @@ def getHand(x, y):
     else:
         print("Error, more than one delimiter detected")
     hand.append(int(result[0]))
+    if hand[1] > 20:
+        print("detecting more than 20")
+        if checkForButton("hit"):
+            return getHand(xHand,yHand, 180+random.randrange(-20,20))
+        else:
+            return 
     return hand
 
 def handTotal(hand):
@@ -229,7 +251,7 @@ def doAction(action):
         print(f"Looking for {action}")
         time.sleep(0.2)
         pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{action}.png")
-        if action != "again" and (get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None):
+        if action != "again" and action != "1" and (get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None):
             pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png")
             gameOver = True
     if not gameOver:
@@ -307,7 +329,13 @@ if __name__ == "__main__":
         num_split = 0
         splitStatus = 'none'
         print("checking for ready")
-        status = doAction("again")
+        waitForReady()
+        clickMouse(866, 977)
+        clickMouse(960, 780)
+        clickMouse(960, 780)
+        clickMouse(960, 780)
+        clickMouse(960, 780)
+        status = waitForReady()
         loop += 1
 
         folder = Path(f"./data/{sys.argv[1]}/.tmp/")
@@ -322,7 +350,7 @@ if __name__ == "__main__":
             timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
             print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
 
-            dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'])
+            dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'], 100)
             if dealerHand[1] > 10 and not dealerHand[0]:
                 dealerHand[1] = 10
             playGame(splitStatus, dealerHand)

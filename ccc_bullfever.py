@@ -4,10 +4,8 @@ from pynput import keyboard
 import random
 
 # Coordinates to click
-spot1 = (3050, 1290)
-spot2 = (2347, 1090)
-upperleft = (1540, 330)
-lowerright = (3158, 1121)
+spot1 = (1450, 925)
+spot2 = (950, 790)
 
 stop_flag = False
 
@@ -25,10 +23,13 @@ listener.start()
 
 print("Clicking... Press 'q' to stop.")
 
-while not stop_flag:
+loop = 5000
+while not stop_flag and loop >= 0:
     pyautogui.click(spot1)
     pyautogui.click(spot2)
     pyautogui.click()
     time.sleep(0.01)
+    loop = loop - 1
+    print(loop)
 
 print("Stopped.")
