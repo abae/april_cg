@@ -1,0 +1,34 @@
+{
+    "ace_split_play": false,
+    "resplit_ace": false,
+    "check_area":{
+        "x": -754,
+        "y": -190,
+        "w": 1277,
+        "h": 677
+    },
+    "read_width": 400,
+    "read_height": 40,
+    "rank":{
+        "minw": 5,
+        "maxw": 30,
+        "minh": 14,
+        "maxh": 35
+    },
+    "deal":{
+        "x": 0,
+        "y": -442
+    },
+    "none":{
+        "x": 811,
+        "y": 581
+    },
+    "R":{
+        "x": 180,
+        "y": -9
+    },
+    "L":{
+        "x": -213,
+        "y": -9
+    }
+}
