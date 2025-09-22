@@ -1,0 +1,36 @@
+{
+    "double_only_first": false,
+    "resplit_ace": true,
+    "ace_split_play": false,
+    "max_split": 1,
+    "check_area":{
+        "x": -357,
+        "y": -102,
+        "w": 800,
+        "h": 670
+    },
+    "rank":{
+        "minw": 2,
+        "maxw": 20,
+        "minh": 10,
+        "maxh": 30
+    },
+    "read_width": 72,
+    "read_height": 37,
+    "deal":{
+        "x": 0,
+        "y": -172
+    },
+    "none":{
+        "x": 924,
+        "y": 389
+    },
+    "L": {
+        "x": -82,
+        "y": -3
+    },
+    "R": {
+        "x": 81,
+        "y": -3
+    }
+}
