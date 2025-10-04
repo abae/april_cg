@@ -1,3 +1,7 @@
+from playwright.sync_api import sync_playwright
+import time
+import pyautogui
+import random
 import cv2
 from pathlib import Path
 import pyscreenshot as ImageGrab
@@ -16,19 +20,21 @@ import uuid
 import datetime
 import json
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+chips_y = 778
+chips_x_start = 1600
+chips_dist = 48
+replay_x = 1720
+replay_y = 628
+decision_y = 450
+double_x = 1609
+hit_x = 1677
+stand_x = 1758
+split_x = 1829
 
-gameOver = False
-num_split = 0
-image_contrast_alpha = 7.0
-image_contrast_beta = -80.0
-
-wait_count = 0
-max_wait_count = 10
-
-loop = 0
-data = []
-
+siteList = {
+    "test": "https://client.petros04.com/?token=01K6KF2VC8KJ3JM7P4YY8MQY9E&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_gc",
+    "luckyhands": "https://client.petros04.com/?token=01K6HN2HTX7WT5ME3H8K7V1QVA&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_ss#launch_main_ssbj_01"
+}
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
 hardStrat = [
@@ -74,107 +80,10 @@ pairStrat = [
     [2,2,2,2,2,2,2,2,2,2]  # A,A
 ]
 
-def read_json_file(file_path):
-    try:
-        with open(file_path, 'r') as file:
-            global data
-            data = json.load(file)
-            return
-    except FileNotFoundError:
-        print(f"Error: File not found at path: {file_path}")
-        return
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON format in file: {file_path}")
-        return
-
-def get_image_pos_on_screen(image_path):  
-    try:
-        global data
-        location = pyautogui.locateOnScreen(image_path, confidence=0.98, region=(data['none']['x']+data['check_area']['x'], data['none']['y']+data['check_area']['y'], data['check_area']['w'], data['check_area']['h']))
-        if location:
-            return pyautogui.center(location)
-        else:
-            return None
-    except ImageNotFoundException:
-        return None
-
-def getHand(xHand, yHand, threshold=180):
-    global data
-    global loop
-    width = data['read_width']
-    height = data['read_height']
-    im=ImageGrab.grab(bbox=(xHand,yHand,xHand+width,yHand+height))
-    im.save(f"./data/{sys.argv[1]}/{xHand}.{yHand}.png")
-    image=np.array(im)
-
-    # Convert to grayscale
-    image = cv2.bitwise_not(image)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Apply thresholding
-    _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
-
-    # Find contours
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Sort contours by x-coordinate (to process ranks in order)
-    contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])
-
-    rank_contours = []
-
-    texts = ""
+def getHand(handStr):
     hand = []
 
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        
-        # Filter out small and large contours
-        if (w > data['rank']['minw'] and w < data['rank']['maxw']) and (h > data['rank']['minh'] and h < data['rank']['maxh']):
-            rank_contours.append(contour)
-
-    for rank_contour in rank_contours:
-        x, y, w, h = cv2.boundingRect(rank_contour)
-        # Extract ROI (Region of Interest)
-        roi = gray[y:y+h, x:x+w]
-        scaling = 32/h
-        roi = cv2.resize(roi, None, fx=scaling, fy=scaling, interpolation=cv2.INTER_CUBIC)
-        _, roi = cv2.threshold(roi, threshold, 255, cv2.THRESH_BINARY)  # Step 2: Binarize
-        width = 200
-        height = 200
-        image_pil = Image.new("RGB", (width, height), "white")
-        gray_img_pil = Image.fromarray(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
-        image_pil.paste(gray_img_pil, (100, 100))
-        image_pil.save(f"./data/{sys.argv[1]}/.tmp/contour_{xHand}_{yHand}.png")
-        # Use Tesseract to extract text
-        text = pytesseract.image_to_string(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
-        image_pil_smooth = image_pil.filter(ImageFilter.SMOOTH)
-        image_pil_smoother = image_pil.filter(ImageFilter.SMOOTH_MORE)
-        text_smooth = pytesseract.image_to_string(image_pil_smooth, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
-        text_smoother = pytesseract.image_to_string(image_pil_smoother, config="--psm 10 -c tessedit_char_whitelist=0123456789/")
-
-        #boxes = pytesseract.image_to_boxes(image_pil, config="--psm 10 -c tessedit_char_whitelist=0123456789JQKA")
-
-        text = text.strip()
-        
-        if text:
-            print(f"found {text}")
-            texts += text
-        elif text_smooth:
-            print(f"found {text_smooth}")
-            texts += text_smooth
-        elif text_smoother:
-            print(f"found {text_smoother}")
-            texts += text_smoother
-        else:
-            print(f"failed to find see contour {sys.argv[1]} (assuming it's 6)")
-            image_pil.save(f"./data/{sys.argv[1]}/error/contour_{loop}_{xHand}_{yHand}.png")
-            if checkForButton("hit"):
-                return getHand(xHand,yHand, threshold+random.randrange(-20,20))
-            else:
-                return 
-    if texts.find("111") != -1:
-        texts = "1/11"
-    result = texts.split("/")
+    result = handStr.split("/")
     if(len(result) == 2):
         hand.append(True)
         result[0] = result[1]
@@ -183,12 +92,7 @@ def getHand(xHand, yHand, threshold=180):
     else:
         print("Error, more than one delimiter detected")
     hand.append(int(result[0]))
-    if hand[1] > 20:
-        print("detecting more than 20")
-        if checkForButton("hit"):
-            return getHand(xHand,yHand, 180+random.randrange(-20,20))
-        else:
-            return 
+
     return hand
 
 def handTotal(hand):
@@ -197,8 +101,8 @@ def handTotal(hand):
 def handTotalHigh(hand):
     return hand[1]
 
-def getStrat(hand, dealer):
-    if hand[1] % 2 == 0 and checkForButton('split'):
+def getStrat(hand, dealer, splitCheck=True):
+    if hand[1] % 2 == 0 and splitCheck:
         if hand[0]:
             return pairStrat[9][dealer-2]
         else:
@@ -208,36 +112,21 @@ def getStrat(hand, dealer):
     else:
         return hardStrat[handTotal(hand)-5][dealer-2]
 
-def playHand(playerHand, dealerHand):
-    strat = getStrat(playerHand, dealerHand[1])
+def playHand(playerHand, dealerHand, splitCheck=True):
+    strat = getStrat(playerHand, dealerHand[1], splitCheck)
+    backupStrat = ""
+    if splitCheck and strat == 2:
+        backupStrat = playHand(playerHand, dealerHand, False)
     if strat == 0:
         return "hit"
     elif strat == 1:
         return "stand"
     elif strat == 2:
-        return "split"
+        return "split/"+str(backupStrat)
     elif strat == 3:
         return "double/hit"
     elif strat == 4:
         return "double/stand"
-
-def checkForButton(button):
-    for i in range(max_wait_count):
-        pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{button}.png")
-        if pos is not None:
-            return True
-    return False
-
-def waitForReady():
-    time.sleep(2.5)
-    while True:
-        print("Looking for object")
-        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/hit.png") != None:
-            return "hit"
-        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None:
-            return "again"
-        if get_image_pos_on_screen(f"./data/{sys.argv[1]}/no_ins.png") != None:
-            doAction("no_ins")
 
 def clickMouse(x, y):
     pyautogui.moveTo(x+(random.random()*10)-5, y+(random.random()*10)-5, 0.1+(random.random()*0.05), pyautogui.easeOutQuad)
@@ -245,112 +134,116 @@ def clickMouse(x, y):
 
 
 def doAction(action):
-    global gameOver
-    pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{action}.png")
-    while(pos == None):
-        print(f"Looking for {action}")
-        time.sleep(0.2)
-        pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/{action}.png")
-        if action != "again" and action != "1" and (get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png") != None):
-            pos = get_image_pos_on_screen(f"./data/{sys.argv[1]}/again.png")
-            gameOver = True
-    if not gameOver:
-        clickMouse(pos[0], pos[1])
-    return waitForReady()
-
-def playGame(splitStatus, dealerHand):
-    if gameOver:
-        return "end"
-    if splitStatus == 'none':
-        playerHand = getHand(data[splitStatus]['x'], data[splitStatus]['y'])
-    else:
-        playerHand = getHand(data[splitStatus]['x'] + data['none']['x'], data[splitStatus]['y'] + data['none']['y'])
-    print(playerHand, dealerHand)
-    print(splitStatus)
-    global loop
-    if handTotal(playerHand) >= 21:
-        doAction("stand")
-        return "end" #shouldn't be here. Read error
-    #Find out the play
-    playerAction = playHand(playerHand, dealerHand)
-    print(playerAction)
-    if playerAction == "double/hit":
-        if checkForButton("double"):
-            playerAction = "double"
-        else:
-            playerAction = "hit"
-    if playerAction == "double/stand":
-        if checkForButton("double"):
-            playerAction = "double"
-        else:
-            playerAction = "stand"
-    # Begin player action
-    if playerAction == "hit":
-        if doAction("hit") == "again":
-            return "end" # player bust
-        playGame(splitStatus, dealerHand)
-    elif playerAction == "stand":
-        doAction("stand")
-        return "end"
-    elif playerAction == "split":
-        global num_split
-        doAction("split")
-        num_split += 1
-        loop += 1
-        if not data['ace_split_play']:
-            if data['resplit_ace']:
-                doAction('split')
-            return "end"
-        if splitStatus == 'none':
-            playGame('R', dealerHand)
-            playGame('L', dealerHand)
-    elif playerAction == "double":
-        doAction("double")
-        loop += 1
-        return "end"
-
+    if action == "hit":
+        clickMouse(hit_x, decision_y)
+    elif action == "stand":
+        clickMouse(stand_x, decision_y)
+    elif action == "double":
+        clickMouse(double_x, decision_y)
+    elif action == "split":
+        clickMouse(split_x, decision_y)
+    elif action == "no_insurance":
+        clickMouse(stand_x, decision_y)
 
 if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        print("Usage: python3 gravAutoBj.py <site> <chip (0-6)> <number of chips to bet> <number of hands>")
+        sys.exit(1)
+    
+    site = sys.argv[1]
+    chip_choice = int(sys.argv[2])
+    chip_quant = int(sys.argv[3])
+    hand_count = int(sys.argv[4])
+    
+    chip_x = chips_x_start + chip_choice * chips_dist
+    loop = 0
+    isReady = True
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=False)
+        page = browser.new_page()
+        page.goto(siteList[site])
 
-    if len(sys.argv) - 1 != 2:
-        print("Usage: python llAutoBj.py [type] [number of hands]")
-        sys.exit()
+        betting_panel = page.locator("div.gameContent__bettingPanel-V4G7pb.gameContent__bettingPanel_active-_HAerr")
+        player_hands = page.locator("div.gameContent__playerCards-orUGTq")
+        player_hand_value = player_hands.locator("div.blackjackCardsStack__value-sxwR0n")
+        dealer_hand = page.locator("div.gameContent__dealerCardsStack-yHjqgC")
+        dealer_hand_value = dealer_hand.locator("div.blackjackCardsStack__value-sxwR0n")
+        active_hand = page.locator("div.blackjackCardsStack__score_activeHand-pFVaGZ")
+        hit_button = page.locator("[data-locator='hit-button']")
+        no_button = page.locator("[data-locator='no-insurance-button']")
+        split_button = page.locator("[data-locator='split-button']")
+        double_button = page.locator("[data-locator='double-button']")
 
-    read_json_file(f"./data/{sys.argv[1]}/data.json")
-    print(f"Starting {sys.argv[1]} with {sys.argv[2]} hands")
+        try:
+            while True:
+                time.sleep(0.5)
+                action = None
 
-    folder = Path(f"./data/{sys.argv[1]}/error/")
-    for file in folder.iterdir():
-        if file.is_file():
-            file.unlink()
+                if betting_panel.count() > 0:
+                    action = "betting_panel"
+                elif hit_button.count() > 0:
+                    action = "hit_button"
+                elif no_button.count() > 0:
+                    action = "noins_button"
 
-    while loop < int(sys.argv[2]):
-        gameOver = False
-        num_split = 0
-        splitStatus = 'none'
-        print("checking for ready")
-        waitForReady()
-        clickMouse(866, 977)
-        clickMouse(960, 780)
-        clickMouse(960, 780)
-        clickMouse(960, 780)
-        clickMouse(960, 780)
-        status = waitForReady()
-        loop += 1
+                if action is not None and not isReady:
+                    # print(f"Found {action}, but waiting for reset...")
+                    continue
+                isReady = False
 
-        folder = Path(f"./data/{sys.argv[1]}/.tmp/")
-        for file in folder.iterdir():
-            if file.is_file():
-                file.unlink()
+                if action == "betting_panel":
+                    if loop >= hand_count:
+                        print("Reached hand count, exiting.")
+                        break
+                    loop += 1
+                    print(f"Betting hand {loop}/{hand_count}")
+                    clickMouse(chip_x, chips_y)
+                    for _ in range(chip_quant):
+                        clickMouse(replay_x, replay_y)
+                    
+                elif action == "hit_button":
+                    playerHand = ""
+                    dealerHand = ""
+                    if active_hand.count() > 0:
+                        print("Found active split hand")
+                        playerHand = active_hand.locator(".blackjackCardsStack__value-sxwR0n").inner_text()
+                        print("Score:", playerHand)
+                    elif player_hand_value.count() > 0:
+                        print("Found player hand")
+                        playerHand = player_hand_value.first.inner_text()
+                        print("Score:", playerHand)
+                    if dealer_hand_value.count() > 0:
+                        dealerHand = dealer_hand_value.first.inner_text()
+                        print("Dealer Score:", dealerHand)
+                    playerHandData = getHand(playerHand)
+                    dealerHandData = getHand(dealerHand)
+                    strat = playHand(playerHandData, dealerHandData)
+                    print(f"Strategy: {strat}")
+                    print(f"Double allowed: {double_button.is_enabled()}")
+                    print(f"Split allowed: {split_button.is_enabled()}")
+                    for act in strat.split("/"):
+                        if act == "double" and double_button.is_enabled():
+                            doAction("double")
+                            loop += 1
+                            break
+                        elif act == "split" and split_button.is_enabled():
+                            doAction("split")
+                            loop += 1
+                            break
+                        elif act == "hit" or act == "stand":
+                            doAction(act)
+                            break
 
-        if status == "again":
-            continue
-        if status == "hit":
-            now = datetime.datetime.now()
-            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"Starting hand {loop}/{sys.argv[2]} [{timestamp}]")
+                elif action == "noins_button":
+                    print(f"No insurance allowed: {no_button.is_enabled()}")
+                    if no_button.is_enabled():
+                        doAction("no_insurance")
+                    
+                else:
+                    # print("Neither appeared within timeout.")
+                    isReady = True
 
-            dealerHand = getHand(data[splitStatus]['x'] + data['deal']['x'], data[splitStatus]['y'] + data['deal']['y'], 100)
-            if dealerHand[1] > 10 and not dealerHand[0]:
-                dealerHand[1] = 10
-            playGame(splitStatus, dealerHand)
+                
+        except KeyboardInterrupt:
+            print("Script interrupted by user.")
