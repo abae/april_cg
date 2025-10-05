@@ -24,7 +24,7 @@ siteList = {
     "test": "https://client.petros04.com/?token=01K6KF2VC8KJ3JM7P4YY8MQY9E&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_gc",
     "luckyhands": "https://client.petros04.com/?token=01K6HN2HTX7WT5ME3H8K7V1QVA&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_ss#launch_main_ssbj_01",
     "realprize": "https://www.realprize.com",
-    "b2mcluck": "https://www.mcluck.com"
+    "b2": "https://www.playfame.com"
 }
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
@@ -158,6 +158,8 @@ if __name__ == "__main__":
     hand_count = int(sys.argv[4])
     
     loop = 0
+    refreshRate = 30
+    refreshLoop = 0
     isReady = True
     
     with sync_playwright() as p:
@@ -214,6 +216,12 @@ if __name__ == "__main__":
                     if loop >= hand_count:
                         print("Reached hand count, exiting.")
                         break
+                    if loop >= refreshLoop + refreshRate:
+                        print("Refreshing page to avoid memory leak...")
+                        page.reload()
+                        refreshLoop = loop
+                        time.sleep(30)
+                        continue
                     loop += 1
                     print(f"Betting hand {loop}/{hand_count}")
                     clickMouse(chip_x, chips_y)
