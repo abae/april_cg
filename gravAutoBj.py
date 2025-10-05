@@ -20,20 +20,11 @@ import uuid
 import datetime
 import json
 
-chips_y = 778
-chips_x_start = 1600
-chips_dist = 48
-replay_x = 1720
-replay_y = 628
-decision_y = 450
-double_x = 1609
-hit_x = 1677
-stand_x = 1758
-split_x = 1829
-
 siteList = {
     "test": "https://client.petros04.com/?token=01K6KF2VC8KJ3JM7P4YY8MQY9E&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_gc",
-    "luckyhands": "https://client.petros04.com/?token=01K6HN2HTX7WT5ME3H8K7V1QVA&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_ss#launch_main_ssbj_01"
+    "luckyhands": "https://client.petros04.com/?token=01K6HN2HTX7WT5ME3H8K7V1QVA&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_ss#launch_main_ssbj_01",
+    "realprize": "https://www.realprize.com",
+    "b2mcluck": "https://www.mcluck.com"
 }
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
@@ -150,12 +141,22 @@ if __name__ == "__main__":
         print("Usage: python3 gravAutoBj.py <site> <chip (0-6)> <number of chips to bet> <number of hands>")
         sys.exit(1)
     
+    chips_y = 778
+    chips_x_start = 1600
+    chips_dist = 48
+    replay_x = 1720
+    replay_y = 628
+    decision_y = 460
+    double_x = 1609
+    hit_x = 1677
+    stand_x = 1758
+    split_x = 1829
+
     site = sys.argv[1]
     chip_choice = int(sys.argv[2])
     chip_quant = int(sys.argv[3])
     hand_count = int(sys.argv[4])
     
-    chip_x = chips_x_start + chip_choice * chips_dist
     loop = 0
     isReady = True
     
@@ -163,6 +164,22 @@ if __name__ == "__main__":
         browser = p.chromium.launch(headless=False)
         page = browser.new_page()
         page.goto(siteList[site])
+
+        if "b2" in site:
+            page = page.frame_locator("iframe.GameCanvas_iframe__h40la").frame_locator("iframe.styles_root__frK1Y")
+            chips_y = 724
+            chips_x_start = 1619
+            chips_dist = 37
+            replay_x = 1712
+            replay_y = 607
+            decision_y = 475
+            double_x = 1628
+            hit_x = 1680
+            stand_x = 1744
+            split_x = 1795
+        elif "realprize" in site:
+            page = page.frame_locator("iframe#gwindow")
+        chip_x = chips_x_start + chip_choice * chips_dist
 
         betting_panel = page.locator("div.gameContent__bettingPanel-V4G7pb.gameContent__bettingPanel_active-_HAerr")
         player_hands = page.locator("div.gameContent__playerCards-orUGTq")
@@ -174,6 +191,7 @@ if __name__ == "__main__":
         no_button = page.locator("[data-locator='no-insurance-button']")
         split_button = page.locator("[data-locator='split-button']")
         double_button = page.locator("[data-locator='double-button']")
+        close_button = page.locator("[data-locator='close-client-behavior']")
 
         try:
             while True:
