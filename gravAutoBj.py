@@ -2,29 +2,15 @@ from playwright.sync_api import sync_playwright
 import time
 import pyautogui
 import random
-import cv2
-from pathlib import Path
-import pyscreenshot as ImageGrab
-import time
-import pyautogui
-from pyautogui import ImageNotFoundException
-import numpy as np
-import random
 import sys
 from matplotlib import pyplot as plt
-from PIL import Image, ImageGrab, ImageFilter
-import imagehash
-import pytesseract
-import shutil
-import uuid
-import datetime
-import json
+from datetime import datetime, timedelta
 
 siteList = {
     "test": "https://client.petros04.com/?token=01K6KF2VC8KJ3JM7P4YY8MQY9E&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_gc",
     "luckyhands": "https://client.petros04.com/?token=01K6HN2HTX7WT5ME3H8K7V1QVA&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_ss#launch_main_ssbj_01",
     "realprize": "https://www.realprize.com",
-    "b2": "https://www.spinblitz.com"
+    "b2": "https://www.mcluck.com"
 }
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
@@ -161,6 +147,8 @@ if __name__ == "__main__":
     refreshRate = 30
     refreshLoop = 0
     isReady = True
+    refreshMin = 5
+    refreshTime = datetime.now() + timedelta(minutes=refreshMin)
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
@@ -198,6 +186,11 @@ if __name__ == "__main__":
 
         try:
             while True:
+                if datetime.now() > refreshTime:
+                    print("Timed out... refreshing page...")
+                    page.reload()
+                    time.sleep(100)
+                    refreshTime = datetime.now() + timedelta(minutes=refreshMin)
                 time.sleep(0.5)
                 action = None
 
@@ -217,19 +210,14 @@ if __name__ == "__main__":
                     if loop >= hand_count:
                         print("Reached hand count, exiting.")
                         break
-                    if loop >= refreshLoop + refreshRate:
-                        print("Refreshing page to avoid memory leak...")
-                        page.reload()
-                        refreshLoop = loop
-                        time.sleep(30)
-                        continue
                     loop += 1
-                    print(f"Betting hand {loop}/{hand_count}")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Betting hand {loop}/{hand_count}")
                     clickMouse(chip_x, chips_y)
                     for _ in range(chip_quant):
                         clickMouse(replay_x, replay_y)
                     
                 elif action == "hit_button":
+                    refreshTime = datetime.now() + timedelta(minutes=refreshMin)
                     playerHand = ""
                     dealerHand = ""
                     if active_hand.count() > 0:
