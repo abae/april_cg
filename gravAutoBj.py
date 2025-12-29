@@ -10,7 +10,7 @@ siteList = {
     "test": "https://client.petros04.com/?token=01K6KF2VC8KJ3JM7P4YY8MQY9E&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_gc",
     "luckyhands": "https://client.petros04.com/?token=01K6HN2HTX7WT5ME3H8K7V1QVA&cid=luckyHands&brand=luckyHands&launchAlias=launch_main_ssbj_01&nolobby=1&social=1&username=75381369-711c-440c-a264-5edf5677a8fa_ss#launch_main_ssbj_01",
     "realprize": "https://www.realprize.com",
-    "b2": "https://www.mcluck.com"
+    "b2": "https://www.megabonanza.com/"
 }
 
 # strat tables 0 = hit, 1 = stand, 2 = split, 3 = double/hit, 4 = double/stand
@@ -128,21 +128,25 @@ if __name__ == "__main__":
         sys.exit(1)
     
     chips_y = 778
-    chips_x_start = 1600
+    chips_x_start = 1600-1080
     chips_dist = 48
-    replay_x = 1720
+    # chips_y = 726
+    # chips_x_start = 539
+    # chips_dist = 36
+    replay_x = 1720-1080
     replay_y = 628
     decision_y = 460
-    double_x = 1609
-    hit_x = 1677
-    stand_x = 1758
-    split_x = 1829
+    double_x = 1609-1080
+    hit_x = 1677-1080
+    stand_x = 1758-1080
+    split_x = 1829-1080
 
     site = sys.argv[1]
     chip_choice = int(sys.argv[2])
     chip_quant = int(sys.argv[3])
     hand_count = int(sys.argv[4])
-    
+    split_active = False
+
     loop = 0
     refreshRate = 30
     refreshLoop = 0
@@ -156,28 +160,28 @@ if __name__ == "__main__":
         page.goto(siteList[site])
 
         if "b2" in site:
-            frame = page.frame_locator("iframe.GameCanvas_iframe__h40la").frame_locator("iframe.styles_root__frK1Y")
-            # frame = page.frame_locator("iframe.styles_iframe__bzIFL").frame_locator("iframe.styles_root__frK1Y")
-            chips_y = 724
-            chips_x_start = 1619
-            chips_dist = 37
-            replay_x = 1712
+            # frame = page.frame_locator("iframe.GameCanvas_iframe__h40la").frame_locator("iframe.styles_root__frK1Y")
+            frame = page.frame_locator("iframe.styles_iframe__bzIFL").frame_locator("iframe.styles_root__frK1Y")
+            chips_y = 732
+            chips_x_start = 560
+            chips_dist = 35
+            replay_x = 1712-1080
             replay_y = 607
-            decision_y = 475
-            double_x = 1628
-            hit_x = 1680
-            stand_x = 1744
-            split_x = 1795
+            decision_y = 500
+            double_x = 1628-1080
+            hit_x = 1680-1080
+            stand_x = 1744-1080
+            split_x = 1795-1080
         elif "realprize" in site:
             frame = page.frame_locator("iframe#gwindow")
         chip_x = chips_x_start + chip_choice * chips_dist
 
-        betting_panel = frame.locator("div.gameContent__bettingPanel-V4G7pb.gameContent__bettingPanel_active-_HAerr")
-        player_hands = frame.locator("div.gameContent__playerCards-orUGTq")
+        betting_panel = frame.locator("div.gameContent__bettingPanel-GNerIo.gameContent__bettingPanel_active-kwQG97")
+        player_hands = frame.locator("div.playerHands__mainHand-i6TJiP")
         player_hand_value = player_hands.locator("div.blackjackCardsStack__value-sxwR0n")
-        dealer_hand = frame.locator("div.gameContent__dealerCardsStack-yHjqgC")
+        dealer_hand = frame.locator("div.gameContent__dealerCardsStack-uLsu8p")
         dealer_hand_value = dealer_hand.locator("div.blackjackCardsStack__value-sxwR0n")
-        active_hand = frame.locator("div.blackjackCardsStack__score_activeHand-pFVaGZ")
+        split_hand = frame.locator("div.playerHands__splitHand-ZCTUCP")
         hit_button = frame.locator("[data-locator='hit-button']")
         no_button = frame.locator("[data-locator='no-insurance-button']")
         split_button = frame.locator("[data-locator='split-button']")
@@ -202,7 +206,7 @@ if __name__ == "__main__":
                     action = "noins_button"
 
                 if action is not None and not isReady:
-                    # print(f"Found {action}, but waiting for reset...")
+                    print(f"Found {action}, but waiting for reset...")
                     continue
                 isReady = False
 
@@ -215,14 +219,19 @@ if __name__ == "__main__":
                     clickMouse(chip_x, chips_y)
                     for _ in range(chip_quant):
                         clickMouse(replay_x, replay_y)
+                    split_active = False
                     
                 elif action == "hit_button":
                     refreshTime = datetime.now() + timedelta(minutes=refreshMin)
                     playerHand = ""
                     dealerHand = ""
-                    if active_hand.count() > 0:
+                    if player_hand_value.count() > 0:
+                        playerData = getHand(player_hand_value.first.inner_text())
+                        if playerData[1] >= 21:
+                            split_active = True
+                    if split_hand.count() > 0 and split_active:
                         print("Found active split hand")
-                        playerHand = active_hand.locator(".blackjackCardsStack__value-sxwR0n").inner_text()
+                        playerHand = split_hand.locator(".blackjackCardsStack__value-sxwR0n").inner_text()
                         print("Score:", playerHand)
                     elif player_hand_value.count() > 0:
                         print("Found player hand")
@@ -241,6 +250,7 @@ if __name__ == "__main__":
                         if act == "double" and double_button.is_enabled():
                             doAction("double")
                             loop += 1
+                            split_active = True
                             break
                         elif act == "split" and split_button.is_enabled():
                             doAction("split")
@@ -248,6 +258,8 @@ if __name__ == "__main__":
                             break
                         elif act == "hit" or act == "stand":
                             doAction(act)
+                            if act == "stand":
+                                split_active = True
                             break
 
                 elif action == "noins_button":
