@@ -165,9 +165,12 @@ if __name__ == "__main__":
             chips_y = 732
             chips_x_start = 560
             chips_dist = 35
+            # chips_y = 726
+            # chips_x_start = 539
+            # chips_dist = 36
             replay_x = 1712-1080
             replay_y = 607
-            decision_y = 500
+            decision_y = 480
             double_x = 1628-1080
             hit_x = 1680-1080
             stand_x = 1744-1080
@@ -176,10 +179,10 @@ if __name__ == "__main__":
             frame = page.frame_locator("iframe#gwindow")
         chip_x = chips_x_start + chip_choice * chips_dist
 
-        betting_panel = frame.locator("div.gameContent__bettingPanel-GNerIo.gameContent__bettingPanel_active-kwQG97")
+        betting_panel = frame.locator("div.gameContent__bettingPanel-b3eK9c.gameContent__bettingPanel_active-S8htDn")
         player_hands = frame.locator("div.playerHands__mainHand-i6TJiP")
         player_hand_value = player_hands.locator("div.blackjackCardsStack__value-sxwR0n")
-        dealer_hand = frame.locator("div.gameContent__dealerCardsStack-uLsu8p")
+        dealer_hand = frame.locator("div.gameContent__dealerCardsStack-pzxdrb")
         dealer_hand_value = dealer_hand.locator("div.blackjackCardsStack__value-sxwR0n")
         split_hand = frame.locator("div.playerHands__splitHand-ZCTUCP")
         hit_button = frame.locator("[data-locator='hit-button']")
